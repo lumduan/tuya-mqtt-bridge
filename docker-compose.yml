@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  tuya-mqtt-bridge:
+    build: .
+    container_name: tuya-mqtt-bridge
+    restart: unless-stopped
+    network_mode: host       # Required for LAN device polling (TinyTuya needs direct IP access)
+    volumes:
+      - ./data:/data         # SQLite persistence
+      - ./.env:/app/.env:ro  # Config
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# ── Notes ─────────────────────────────────────────────────────────────────────
+# network_mode: host is intentional — TinyTuya must reach Tuya devices
+# on your LAN by direct IP. Bridge mode would require --add-host entries
+# for every device which is impractical.
+#
+# Your existing Mosquitto container should already be running.
+# Set MQTT_HOST in .env to its IP / hostname.

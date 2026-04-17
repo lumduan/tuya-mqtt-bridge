@@ -1,0 +1,29 @@
+[project]
+name = "tuya-mqtt-bridge"
+version = "0.1.0"
+description = "TinyTuya → MQTT bridge with NiceGUI management interface"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+keywords = ["tuya", "mqtt", "home-assistant", "iot", "nicegui", "tinytuya"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Home Automation",
+]
+dependencies = [
+    "tinytuya>=1.15.0",
+    "aiomqtt>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "nicegui>=1.4.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+tuya-mqtt-bridge = "app.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

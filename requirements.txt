@@ -1,0 +1,5 @@
+tinytuya>=1.15.0
+aiomqtt>=2.0.0
+sqlalchemy>=2.0.0
+nicegui>=1.4.0
+python-dotenv>=1.0.0

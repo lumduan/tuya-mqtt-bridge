@@ -1,0 +1,43 @@
+# Environment / secrets
+.env
+*.env.local
+
+.github/
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.pytest_cache/
+.python-version
+.coverage
+htmlcov/
+
+# SQLite database
+data/
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Temp / debug
+temp/
+debug/
+
+pre_build_project/
