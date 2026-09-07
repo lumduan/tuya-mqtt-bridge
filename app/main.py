@@ -25,8 +25,14 @@ logger = logging.getLogger(__name__)
 
 @nicegui_app.on_startup
 async def startup():
+    # init_db() is also called when app.db.database is imported, so the schema is
+    # already there by now. Kept here because it is idempotent and this is where a
+    # reader looks for it.
     init_db()
-    await bridge_manager.start()
+    try:
+        await bridge_manager.start()
+    except Exception:
+        logger.exception("Bridge failed to start — the UI is still available")
     logger.info("Application started")
 
 

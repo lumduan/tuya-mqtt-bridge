@@ -320,6 +320,38 @@ python -m app.main
 
 ## Troubleshooting
 
+### `no such table: devices` on first run
+
+```text
+[ERROR] nicegui: (sqlite3.OperationalError) no such table: devices
+[SQL: SELECT devices.device_id AS devices_device_id, ... FROM devices]
+```
+
+**Cause, reproduced in a container.** `data/devices.db` exists but is not writable by the
+user inside the image, which runs as uid 1000. Schema creation fails with `attempt to
+write a readonly database`, the app logs that once at startup and keeps serving, and every
+page render afterwards runs a SELECT that opens the file successfully and reports the
+missing table. So the message you keep seeing names the table, while the real cause is a
+file permission and it has already scrolled past.
+
+The usual way to get there: `docker compose up` creates a missing `./data` owned by root,
+because `data/` is gitignored and so absent from a fresh clone.
+
+**Fixed in the app.** The schema is now created when the database module is imported, and a
+failure raises immediately naming the path and the user id, so the container stops with the
+real cause instead of serving errors that blame the schema.
+
+**Workaround on an older build:**
+
+```bash
+mkdir -p data && sudo chown -R 1000:1000 data
+docker compose down && docker compose up -d
+```
+
+Note for completeness: with a writable `data/` the older build does start and serve, even
+with no broker reachable. A failed MQTT connect used to abort the rest of startup so the
+device pollers never began, which is fixed too, but it is not what produced this error.
+
 ### Device shows as Offline
 
 ```bash
