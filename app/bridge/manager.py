@@ -8,6 +8,7 @@ import json
 import logging
 from typing import Dict
 
+from app.config import config
 from app.db.database import get_all_devices, update_device_status
 from app.mqtt.client import mqtt_client
 from app.mqtt.publisher import publish_state, publish_availability, publish_ha_discovery
@@ -23,8 +24,25 @@ class BridgeManager:
         self._ha_discovered: set[str] = set()  # track devices already announced
 
     async def start(self):
-        """Connect MQTT and start pollers for all enabled DB devices."""
-        await mqtt_client.connect()
+        """Connect MQTT and start pollers for all enabled DB devices.
+
+        A broker that is down must not stop the bridge coming up. Previously this
+        raised out of the NiceGUI startup handler before any poller was created, so
+        no device was ever polled. The UI itself kept serving, so this is a
+        robustness fix rather than the cause of issue #1. publish() already no-ops
+        while disconnected, so starting without a broker is safe: devices are
+        polled, and publishing resumes on the next connect.
+        """
+        try:
+            await mqtt_client.connect()
+        except Exception as exc:
+            logger.error(
+                "MQTT connection to %s:%s failed: %s. Starting anyway — devices will "
+                "be polled but nothing is published until the broker is reachable. "
+                "Check MQTT_HOST and MQTT_PORT in .env.",
+                config.mqtt.host, config.mqtt.port, exc,
+            )
+
         devices = get_all_devices()
         for device in devices:
             if device.enabled:

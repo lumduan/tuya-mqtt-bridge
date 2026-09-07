@@ -3,9 +3,12 @@ app/db/database.py
 SQLite database engine, session factory, and CRUD helpers.
 """
 import logging
+import os
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Optional
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.db.models import Base, Device
@@ -14,18 +17,56 @@ from app.config import config
 logger = logging.getLogger(__name__)
 
 # ── Engine & Session ──────────────────────────────────────────────────────────
+DB_PATH = Path(config.db_path).expanduser()
+
+try:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+except OSError as exc:  # pragma: no cover - depends on the host filesystem
+    raise RuntimeError(
+        f"Cannot create the directory for DB_PATH={DB_PATH}: {exc}. "
+        f"This process runs as uid {os.getuid()}. If DB_PATH is inside a bind-mounted "
+        f"volume, note that `docker compose up` creates a missing host directory owned "
+        f"by root, which this uid cannot write to."
+    ) from exc
+
 engine = create_engine(
-    f"sqlite:///{config.db_path}",
+    f"sqlite:///{DB_PATH}",
     connect_args={"check_same_thread": False},
     echo=False,
 )
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+# expire_on_commit=False is required, not a preference. get_session() commits and
+# closes on exit, so with the default True every object returned by the helpers
+# below would be expired AND detached, and the first attribute access in the UI
+# would raise DetachedInstanceError.
+SessionLocal = sessionmaker(
+    bind=engine, autocommit=False, autoflush=False, expire_on_commit=False
+)
 
 
 def init_db():
-    """Create all tables if they don't exist."""
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database initialized at %s", config.db_path)
+    """Create all tables if they don't exist. Idempotent — safe to call repeatedly."""
+    try:
+        Base.metadata.create_all(bind=engine)
+    except OperationalError as exc:
+        raise RuntimeError(
+            f"Cannot create the database schema at {DB_PATH}: {exc}. "
+            f"This process runs as uid {os.getuid()} and needs write access to that "
+            f"file and its directory."
+        ) from exc
+    logger.info("Database ready at %s", DB_PATH)
+
+
+# Create the schema when this module is imported, not only from a lifecycle hook.
+# It previously ran solely from the NiceGUI @app.on_startup handler in app/main.py,
+# and a failure there was logged while the app carried on serving. Reproduced for
+# issue #1: when devices.db exists but is not writable by the container user,
+# create_all fails once at startup with "attempt to write a readonly database",
+# then every page render runs a SELECT that opens the file fine and reports
+# "no such table: devices". The visible, repeating error names the table while the
+# real cause has already scrolled past. Creating the schema here, and raising, makes
+# the real cause fatal and first. create_all is a no-op once the tables exist.
+init_db()
 
 
 @contextmanager
